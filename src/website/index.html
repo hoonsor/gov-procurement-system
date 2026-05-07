@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>政府採購招標系統</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0d6efd;
+            --success: #198754;
+            --warning: #ffc107;
+            --danger: #dc3545;
+            --info: #0dcaf0;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .main-container {
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 24px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--primary);
+        }
+        
+        .filter-section {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        
+        .tender-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            transition: all 0.3s;
+            border-left: 4px solid var(--primary);
+        }
+        
+        .tender-card:hover {
+            transform: translateX(8px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        }
+        
+        .tender-card.urgent {
+            border-left-color: var(--danger);
+        }
+        
+        .tender-card.warning {
+            border-left-color: var(--warning);
+        }
+        
+        .badge-category {
+            font-size: 0.85rem;
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+        
+        .budget-amount {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--success);
+        }
+        
+        .deadline-badge {
+            font-size: 0.9rem;
+            padding: 8px 16px;
+            border-radius: 8px;
+        }
+        
+        .footer {
+            text-align: center;
+            color: white;
+            padding: 20px;
+            margin-top: 40px;
+        }
+        
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .loading-spinner.active {
+            display: block;
+        }
+        
+        .loading-spinner .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="mb-2"><i class="bi bi-building"></i> 政府採購招標系統</h1>
+                    <p class="text-muted mb-0">政府電子採購網招標公告、即時更新</p>
+                </div>
+                <div class="text-end">
+                    <p class="mb-1"><i class="bi bi-clock"></i> <span id="currentTime"></span></p>
+                    <button class="btn btn-primary" onclick="refreshTenders()">
+                        <i class="bi bi-arrow-clockwise"></i> 重新整理
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Stats Row -->
+            <div class="row mt-4" id="statsRow">
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number" id="totalTenders">0</div>
+                        <div class="text-muted">總招標案</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number text-success" id="totalBudget">0</div>
+                        <div class="text-muted">總預算(萬)</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number text-danger" id="urgentCount">0</div>
+                        <div class="text-muted">即將截止</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number text-warning" id="categoryCount">0</div>
+                        <div class="text-muted">案件類別</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Filters -->
+        <div class="filter-section">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">關鍵字搜尋</label>
+                    <input type="text" class="form-control" id="searchKeyword" 
+                           placeholder="搜尋標題、機構..." oninput="filterTenders()">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">案件類別</label>
+                    <select class="form-select" id="filterCategory" onchange="filterTenders()">
+                        <option value="">全部類別</option>
+                        <option value="資訊設備">資訊設備</option>
+                        <option value="資訊服務">資訊服務</option>
+                        <option value="電器設備">電器設備</option>
+                        <option value="工程類">工程類</option>
+                        <option value="文具類">文具類</option>
+                        <option value="安全設備">安全設備</option>
+                        <option value="服務類">服務類</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">預算範圍</label>
+                    <select class="form-select" id="filterBudget" onchange="filterTenders()">
+                        <option value="">全部預算</option>
+                        <option value="0-100">100萬以下</option>
+                        <option value="100-300">100-300萬</option>
+                        <option value="300-999999">300萬以上</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">截止篩選</label>
+                    <select class="form-select" id="filterStatus" onchange="filterTenders()">
+                        <option value="">全部</option>
+                        <option value="urgent">7天內截止</option>
+                        <option value="warning">14天內截止</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Loading Spinner -->
+        <div class="loading-spinner" id="loadingSpinner">
+            <div class="spinner-border text-light" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="text-white mt-3">載入招標資料中...</p>
+        </div>
+        
+        <!-- Tender List -->
+        <div id="tenderList">
+            <!-- 動態產生 -->
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <p>政府採購招標系統 v1.0 | 資料來源：政府電子採購網（模擬資料）</p>
+            <p><small>本系統僅供展示用途，不涉及實際政府採購流程</small></p>
+        </div>
+    </div>
+
+    <script>
+        // Mock Tender Data
+        const mockTenders = [
+            {
+                "tender_id": "TP-2026-001",
+                "title": "校園網路設備更新採購案",
+                "agency": "教育部",
+                "department": "資訊中心",
+                "category": "資訊設備",
+                "budget": 2500000,
+                "publish_date": "2026-05-01",
+                "deadline": "2026-05-25",
+                "description": "採購校園網路交換器、路由器及相關設備，包含安裝與保固服務。",
+                "requirements": "須具備ISO 27001認證，近三年有類似實績者優先。",
+                "contact": "王先生",
+                "phone": "02-1234-5678",
+                "status": "投標中"
+            },
+            {
+                "tender_id": "TP-2026-002",
+                "title": "圖書館自動化系統更新",
+                "agency": "文化部",
+                "department": "圖書館",
+                "category": "資訊服務",
+                "budget": 1800000,
+                "publish_date": "2026-05-03",
+                "deadline": "2026-05-28",
+                "description": "引進自動化圖書管理系統，包含軟體授權、硬體設備及教育訓練。",
+                "requirements": "須具備圖書館系統建置經驗，通過CMMI Level 3以上認證。",
+                "contact": "李小姐",
+                "phone": "02-2345-6789",
+                "status": "投標中"
+            },
+            {
+                "tender_id": "TP-2026-003",
+                "title": "學生宿舍冷氣機採購",
+                "agency": "教育部",
+                "department": "學務處",
+                "category": "電器設備",
+                "budget": 3200000,
+                "publish_date": "2026-05-05",
+                "deadline": "2026-06-01",
+                "description": "採購分離式冷氣機200台，包含安裝及五年保固服務。",
+                "requirements": "產品須具備節能標章，CSPF值達3.5以上。",
+                "contact": "張先生",
+                "phone": "03-3456-7890",
+                "status": "投標中"
+            },
+            {
+                "tender_id": "TP-2026-004",
+                "title": "運動場地設施改善工程",
+                "agency": "體育署",
+                "department": "設施科",
+                "category": "工程類",
+                "budget": 4500000,
+                "publish_date": "2026-05-06",
+                "deadline": "2026-06-05",
+                "description": "田徑場跑道翻新、籃球場地更新及照明設備改善。",
+                "requirements": "須具備甲級營造業執照，近五年有學校運動場地工程實績。",
+                "contact": "陳先生",
+                "phone": "04-4567-8901",
+                "status": "投標中"
+            },
+            {
+                "tender_id": "TP-2026-005",
+                "title": "教學軟體平台建置",
+                "agency": "教育部",
+                "department": "教務處",
+                "category": "資訊服務",
+                "budget": 1500000,
+                "publish_date": "2026-05-07",
+                "deadline": "2026-06-08",
+                "description": "建置雲端教學平台，支援線上課程、測驗及學習歷程管理。",
+                "requirements": "須具備教育雲端平台建置經驗，通過資安認證。",
+                "contact": "林小姐",
+                "phone": "05-5678-9012",
+                "status": "投標中"
+            },
+            {
+                "tender_id": "TP-2026-006",
+                "title": "辦公室文具用品採購",
+                "agency": "行政院",
+                "department": "總務處",
+                "category": "文具類",
+                "budget": 500000,
+                "publish_date": "2026-05-02",
+                "deadline": "2026-05-20",
+                "description": "年度文具用品統一採購，包含紙張、筆類、檔案夾等。",
+                "requirements": "須為合法立案廠商，具政府採購經驗者優先。",
+                "contact": "黃小姐",
+                "phone": "06-6789-0123",
+                "status": "即將截止"
+            },
+            {
+                "tender_id": "TP-2026-007",
+                "title": "監視系統更新採購",
+                "agency": "內政部",
+                "department": "警政署",
+                "category": "安全設備",
+                "budget": 2800000,
+                "publish_date": "2026-04-28",
+                "deadline": "2026-05-18",
+                "description": "校園安全監視系統更新，採用IP Camera數位方案。",
+                "requirements": "須具備安控系統建置丙級以上認證。",
+                "contact": "劉先生",
+                "phone": "07-7890-1234",
+                "status": "即將截止"
+            },
+            {
+                "tender_id": "TP-2026-008",
+                "title": "環境清潔服務採購",
+                "agency": "環境部",
+                "department": "清潔隊",
+                "category": "服務類",
+                "budget": 1200000,
+                "publish_date": "2026-05-04",
+                "deadline": "2026-06-02",
+                "description": "環境清潔打蠟、垃圾清運及資源回收服務。",
+                "requirements": "須具備環境清潔服務業登記，員工須受過專業訓練。",
+                "contact": "周小姐",
+                "phone": "08-8901-2345",
+                "status": "投標中"
+            }
+        ];
+
+        // Calculate days remaining
+        function getDaysRemaining(deadline) {
+            const today = new Date();
+            const deadlineDate = new Date(deadline);
+            const diff = Math.ceil((deadlineDate - today) / (1000 * 60 * 60 * 24));
+            return diff;
+        }
+
+        // Format budget
+        function formatBudget(amount) {
+            if (amount >= 10000000) {
+                return (amount / 10000000).toFixed(1) + ' 千萬';
+            } else if (amount >= 10000) {
+                return Math.round(amount / 10000) + ' 萬';
+            }
+            return amount.toLocaleString();
+        }
+
+        // Update stats
+        function updateStats(tenders) {
+            const totalTenders = tenders.length;
+            const totalBudget = tenders.reduce((sum, t) => sum + t.budget, 0) / 10000;
+            const urgentCount = tenders.filter(t => getDaysRemaining(t.deadline) <= 7 && getDaysRemaining(t.deadline) > 0).length;
+            const categories = new Set(tenders.map(t => t.category)).size;
+
+            document.getElementById('totalTenders').textContent = totalTenders;
+            document.getElementById('totalBudget').textContent = Math.round(totalBudget);
+            document.getElementById('urgentCount').textContent = urgentCount;
+            document.getElementById('categoryCount').textContent = categories;
+        }
+
+        // Render tender card
+        function renderTenderCard(tender) {
+            const daysLeft = getDaysRemaining(tender.deadline);
+            let urgencyClass = '';
+            let deadlineClass = 'bg-success';
+            let deadlineText = `${daysLeft} 天後截止`;
+
+            if (daysLeft <= 7) {
+                urgencyClass = 'urgent';
+                deadlineClass = 'bg-danger';
+                deadlineText = `⚠️ ${daysLeft} 天後截止`;
+            } else if (daysLeft <= 14) {
+                urgencyClass = 'warning';
+                deadlineClass = 'bg-warning text-dark';
+                deadlineText = `⏰ ${daysLeft} 天後截止`;
+            }
+
+            return `
+                <div class="tender-card ${urgencyClass}">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <span class="badge bg-primary badge-category">${tender.category}</span>
+                            <h4 class="mt-2 mb-1">${tender.title}</h4>
+                            <small class="text-muted">
+                                <i class="bi bi-hash"></i> ${tender.tender_id} | 
+                                <i class="bi bi-building"></i> ${tender.agency} / ${tender.department}
+                            </small>
+                        </div>
+                        <div class="text-end">
+                            <div class="budget-amount">$${formatBudget(tender.budget)}</div>
+                            <small class="text-muted">預算金額</small>
+                        </div>
+                    </div>
+                    
+                    <p class="text-muted mb-3">${tender.description}</p>
+                    
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge ${deadlineClass} deadline-badge">
+                                <i class="bi bi-calendar"></i> ${deadlineText}
+                            </span>
+                            <small class="text-muted ms-3">
+                                <i class="bi bi-person"></i> ${tender.contact} | ${tender.phone}
+                            </small>
+                        </div>
+                        <button class="btn btn-outline-primary btn-sm" onclick="showDetail('${tender.tender_id}')">
+                            <i class="bi bi-eye"></i> 查看詳情
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Filter tenders
+        function filterTenders() {
+            const keyword = document.getElementById('searchKeyword').value.toLowerCase();
+            const category = document.getElementById('filterCategory').value;
+            const budgetRange = document.getElementById('filterBudget').value;
+            const statusFilter = document.getElementById('filterStatus').value;
+
+            let filtered = mockTenders.filter(tender => {
+                // Keyword filter
+                if (keyword && !tender.title.toLowerCase().includes(keyword) && 
+                    !tender.agency.includes(keyword) && !tender.department.includes(keyword)) {
+                    return false;
+                }
+
+                // Category filter
+                if (category && tender.category !== category) {
+                    return false;
+                }
+
+                // Budget filter
+                if (budgetRange) {
+                    const [min, max] = budgetRange.split('-').map(Number);
+                    const budgetIn萬 = tender.budget / 10000;
+                    if (max && (budgetIn萬 < min || budgetIn萬 > max)) return false;
+                    if (!max && budgetIn萬 > min) return false;
+                }
+
+                // Status filter
+                if (statusFilter) {
+                    const days = getDaysRemaining(tender.deadline);
+                    if (statusFilter === 'urgent' && (days <= 0 || days > 7)) return false;
+                    if (statusFilter === 'warning' && (days <= 0 || days > 14)) return false;
+                }
+
+                return true;
+            });
+
+            renderTenderList(filtered);
+        }
+
+        // Render tender list
+        function renderTenderList(tenders) {
+            const container = document.getElementById('tenderList');
+            
+            if (tenders.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-white py-5">
+                        <i class="bi bi-search" style="font-size: 4rem;"></i>
+                        <h3 class="mt-3">找不到符合條件的招標案</h3>
+                        <p>請嘗試調整搜尋條件</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = tenders.map(renderTenderCard).join('');
+        }
+
+        // Show detail modal
+        function showDetail(tenderId) {
+            const tender = mockTenders.find(t => t.tender_id === tenderId);
+            if (!tender) return;
+
+            const modal = `
+                <div class="modal fade" id="detailModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">${tender.title}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <table class="table table-striped">
+                                    <tr><th width="30%">案號</th><td>${tender.tender_id}</td></tr>
+                                    <tr><th>機關</th><td>${tender.agency} / ${tender.department}</td></tr>
+                                    <tr><th>類別</th><td>${tender.category}</td></tr>
+                                    <tr><th>預算</th><td>NT$ ${tender.budget.toLocaleString()} 元</td></tr>
+                                    <tr><th>發布日期</th><td>${tender.publish_date}</td></tr>
+                                    <tr><th>截止日期</th><td>${tender.deadline}</td></tr>
+                                    <tr><th>狀態</th><td><span class="badge bg-info">${tender.status}</span></td></tr>
+                                    <tr><th>說明</th><td>${tender.description}</td></tr>
+                                    <tr><th>投標要件</th><td>${tender.requirements}</td></tr>
+                                    <tr><th>聯絡人</th><td>${tender.contact} (${tender.phone})</td></tr>
+                                </table>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+                                <button type="button" class="btn btn-primary" onclick="downloadDocs('${tender.tender_id}')">
+                                    <i class="bi bi-download"></i> 下載投標文件
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Remove existing modal
+            const existingModal = document.getElementById('detailModal');
+            if (existingModal) existingModal.remove();
+
+            document.body.insertAdjacentHTML('beforeend', modal);
+            const modalInstance = new bootstrap.Modal(document.getElementById('detailModal'));
+            modalInstance.show();
+        }
+
+        // Download docs (mock)
+        function downloadDocs(tenderId) {
+            alert(`已產生投標書及估價單，下載中...\n案號: ${tenderId}\n\n注意：這是模擬系統，不會真的下載檔案。`);
+        }
+
+        // Refresh tenders
+        function refreshTenders() {
+            const spinner = document.getElementById('loadingSpinner');
+            spinner.classList.add('active');
+
+            // Simulate loading
+            setTimeout(() => {
+                spinner.classList.remove('active');
+                updateStats(mockTenders);
+                renderTenderList(mockTenders);
+            }, 800);
+        }
+
+        // Update current time
+        function updateTime() {
+            const now = new Date();
+            const options = { 
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            };
+            document.getElementById('currentTime').textContent = now.toLocaleString('zh-TW', options);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            updateTime();
+            setInterval(updateTime, 1000);
+            
+            updateStats(mockTenders);
+            renderTenderList(mockTenders);
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
